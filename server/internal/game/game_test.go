@@ -128,6 +128,7 @@ func TestSlideAndScore(t *testing.T) {
 	s.Players[0].Penguins = []int{0}
 	s.Players[1].Penguins = []int{2}
 	s.Turn = 0
+	s.Tiles[1].Fish = 3
 
 	moves := s.LegalMovesFrom(0)
 	if len(moves) == 0 {
@@ -157,8 +158,8 @@ func TestSlideAndScore(t *testing.T) {
 	if next.Tiles[0].Gone != true || next.Tiles[0].Owner != -1 {
 		t.Fatal("起点格应沉没且无归属")
 	}
-	if next.Players[0].Score != 1 {
-		t.Fatalf("得分 = %d, 期望 1", next.Players[0].Score)
+	if next.Players[0].Score != 3 {
+		t.Fatalf("得分 = %d, 期望到达三鱼格立即获得 3 分", next.Players[0].Score)
 	}
 	if next.Players[0].Penguins[0] != 1 {
 		t.Fatalf("企鹅位置 = %d, 期望 1", next.Players[0].Penguins[0])

@@ -251,19 +251,56 @@ func (s *GameState) finishGame() {
 	}
 }
 
-// eliminatePlayer 淘汰玩家（官方规则）：全部企鹅被困 → 企鹅离场，带走脚下格子的鱼，格子沉没
-func (s *GameState) eliminatePlayer(player int) {
+// removePenguin 单只企鹅离场；鱼已在落脚时计分，这里只移除冰块。
+func (s *GameState) removePenguin(player, slot int) {
 	p := &s.Players[player]
-	for i, idx := range p.Penguins {
-		if idx >= 0 {
-			t := &s.Tiles[idx]
-			t.Owner = -1
-			t.Gone = true
-			p.Score += t.Fish
-			p.Penguins[i] = -1
+	idx := p.Penguins[slot]
+	if idx < 0 {
+		return
+	}
+	t := &s.Tiles[idx]
+	t.Owner, t.Gone = -1, true
+	p.Penguins[slot] = -1
+}
+
+// settleIsolatedPenguins 只剩脚下一块冰的企鹅立即掉落，不把被占用的相邻冰块算成水面。
+func (s *GameState) settleIsolatedPenguins() {
+	for player := range s.Players {
+		p := &s.Players[player]
+		remaining := false
+		for slot, idx := range p.Penguins {
+			if idx < 0 {
+				continue
+			}
+			tile := s.Tiles[idx]
+			connected := false
+			for _, d := range hexDirs {
+				n := s.find(tile.Q+d[0], tile.R+d[1])
+				if n >= 0 && !s.Tiles[n].Gone {
+					connected = true
+					break
+				}
+			}
+			if connected {
+				remaining = true
+			} else {
+				s.removePenguin(player, slot)
+			}
+		}
+		if !remaining {
+			p.Stuck = true
 		}
 	}
+}
+
+// eliminatePlayer 全部企鹅被困时淘汰玩家，结算剩余冰块。
+func (s *GameState) eliminatePlayer(player int) {
+	p := &s.Players[player]
+	for i := range p.Penguins {
+		s.removePenguin(player, i)
+	}
 	p.Stuck = true
+	s.settleIsolatedPenguins()
 }
 
 // advanceTurn 推进行动权：出局玩家跳过；无人可动则终局
@@ -321,6 +358,7 @@ func (s *GameState) applyChecked(mv *Move) error {
 		}
 		t.Owner = mv.Player
 		p := &s.Players[mv.Player]
+		p.Score += t.Fish
 		for i, pos := range p.Penguins {
 			if pos == -1 {
 				p.Penguins[i] = mv.To
@@ -334,6 +372,7 @@ func (s *GameState) applyChecked(mv *Move) error {
 		}
 		if s.Ply >= total {
 			s.Phase = PhaseMoving
+			s.settleIsolatedPenguins()
 			// 移动阶段由第一个放置的玩家（玩家 0）先行动
 			s.Turn = 0
 			if !s.PlayerCanMove(s.Turn) {
@@ -370,7 +409,7 @@ func (s *GameState) applyChecked(mv *Move) error {
 	from.Owner = -1
 	from.Gone = true
 	s.Tiles[mv.To].Owner = mv.Player
-	s.Players[mv.Player].Score += from.Fish
+	s.Players[mv.Player].Score += s.Tiles[mv.To].Fish // 到达目标冰块时立即收集鱼
 	p := &s.Players[mv.Player]
 	for i, pos := range p.Penguins {
 		if pos == mv.From {
@@ -379,7 +418,8 @@ func (s *GameState) applyChecked(mv *Move) error {
 		}
 	}
 	s.Ply++
-	// 自己走完即被困 → 立即出局（官方规则：企鹅离场并带走脚下的鱼）
+	s.settleIsolatedPenguins()
+	// 自己走完即被困 → 立即出局，已收集的鱼不重复计分。
 	if !s.PlayerCanMove(mv.Player) {
 		s.eliminatePlayer(mv.Player)
 	}

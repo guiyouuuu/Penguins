@@ -89,19 +89,36 @@ export function playerCanMove(state: GameState, player: number): boolean {
   return false;
 }
 
-/** 淘汰玩家（官方规则）：全部企鹅被困 → 企鹅离场，带走脚下格子的鱼，格子沉没 */
+/** 单只企鹅离场；鱼已在落脚时计分，这里只移除冰块。 */
+function removePenguin(state: GameState, player: number, slot: number): void {
+  const p = state.players[player];
+  const idx = p.penguins[slot];
+  if (idx < 0) return;
+  state.tiles[idx].owner = -1;
+  state.tiles[idx].gone = true;
+  p.penguins[slot] = -1;
+}
+
+/** 只剩脚下一块冰的企鹅立即掉落；相邻冰块被企鹅占用不等于孤岛。 */
+function settleIsolatedPenguins(state: GameState): void {
+  state.players.forEach((p, player) => {
+    p.penguins.forEach((idx, slot) => {
+      if (idx >= 0 && !neighbors(state, idx).some(n => n >= 0 && !state.tiles[n].gone)) {
+        removePenguin(state, player, slot);
+      }
+    });
+    if (p.penguins.every(idx => idx < 0)) p.stuck = true;
+  });
+}
+
+/** 全部企鹅被困时淘汰玩家，结算剩余冰块。 */
 function eliminatePlayer(state: GameState, player: number): void {
   const p = state.players[player];
   for (let i = 0; i < p.penguins.length; i++) {
-    const idx = p.penguins[i];
-    if (idx >= 0) {
-      state.tiles[idx].owner = -1;
-      state.tiles[idx].gone = true;
-      p.score += state.tiles[idx].fish;
-      p.penguins[i] = -1;
-    }
+    removePenguin(state, player, i);
   }
   p.stuck = true;
+  settleIsolatedPenguins(state);
 }
 
 /** 推进行动权：出局玩家跳过；无人可动则终局 */
@@ -150,9 +167,11 @@ function doPlace(state: GameState, player: number, tileIdx: number): void {
   const p = state.players[player];
   const slot = p.penguins.indexOf(-1);
   p.penguins[slot] = tileIdx;
+  p.score += tile.fish;
   state.ply++;
   if (state.ply >= totalPlacements(state)) {
     state.phase = 'moving';
+    settleIsolatedPenguins(state);
     // 移动阶段由第一个放置的玩家（玩家 0）先行动
     state.turn = 0;
     if (!playerCanMove(state, state.turn)) {
@@ -171,11 +190,12 @@ function doMove(state: GameState, player: number, from: number, to: number): voi
   fromTile.owner = -1;
   fromTile.gone = true; // 离开的格子沉没
   toTile.owner = player;
-  state.players[player].score += fromTile.fish; // 起点格的鱼归玩家
+  state.players[player].score += toTile.fish; // 到达目标冰块时立即收集鱼
   const p = state.players[player];
   p.penguins[p.penguins.indexOf(from)] = to;
   state.ply++;
-  // 自己走完即被困 → 立即出局（官方规则：企鹅离场并带走脚下的鱼）
+  settleIsolatedPenguins(state);
+  // 自己走完即被困 → 立即出局，已收集的鱼不重复计分。
   if (!playerCanMove(state, player)) eliminatePlayer(state, player);
   advanceTurn(state);
 }

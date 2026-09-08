@@ -254,13 +254,18 @@ export class App {
       if (t.gone && !prev.tiles[i].gone) sinks.push(i);
     });
     if (sinks.length > 0) this.renderer.playSinks(sinks);
-    // 玩家出局提示（官方规则：企鹅离场并带走脚下的鱼）
+    // 按单只企鹅比较，玩家尚未出局时也播放孤岛掉落。
     next.players.forEach((p, i) => {
+      const positions = prev.players[i].penguins.flatMap((idx, slot) => {
+        if (idx < 0 || p.penguins[slot] >= 0) return [];
+        return [move?.kind === 'move' && move.player === i && move.from === idx ? move.to : idx];
+      });
+      if (move?.kind === 'place' && move.player === i && next.tiles[move.to].gone) positions.push(move.to);
+      if (positions.length > 0) this.renderer.playDepartures(positions.map(idx => ({ idx, player: i })));
       if (p.stuck && !prev.players[i].stuck) {
-        const positions = prev.players[i].penguins.filter(idx => idx >= 0).map(idx =>
-          move?.kind === 'move' && move.player === i && move.from === idx ? move.to : idx);
-        this.renderer.playDepartures(positions.map(idx => ({ idx, player: i })));
-        this.showToast(`${p.name} 已无路可走，脚下的鱼已结算${next.phase === 'finished' ? '' : `，${next.players[next.turn].name} 继续行动`}`);
+        this.showToast(`${p.name} 已无路可走，企鹅全部离场${next.phase === 'finished' ? '' : `，${next.players[next.turn].name} 继续行动`}`);
+      } else if (positions.length > 0) {
+        this.showToast(`${p.name} 的 ${positions.length} 只企鹅随孤立冰块掉落`);
       }
     });
   }
