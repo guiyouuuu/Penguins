@@ -68,7 +68,7 @@ func Run(ctx context.Context, cfg config.Config, assets fs.FS, logger *slog.Logg
 			logger.Error("room.shutdown_failed", "error", err)
 		}
 	}()
-	httpHandler := router.New(handler.Options{Accounts: service.NewAccount(db, authSvc), Auth: authSvc, Hub: hub, Static: assets, Logger: logger, RequestTimeout: cfg.RequestTimeout, Ready: func(ctx context.Context) error {
+	httpHandler := router.New(handler.Options{Accounts: service.NewAccount(db, authSvc), Auth: authSvc, Hub: hub, Static: assets, Logger: logger, RequestTimeout: cfg.RequestTimeout, WSAllowedOrigins: cfg.WSAllowedOrigins, Ready: func(ctx context.Context) error {
 		if err := db.Ping(ctx); err != nil {
 			return fmt.Errorf("mysql readiness: %w", err)
 		}

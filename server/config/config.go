@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 )
 
 type Config struct {
+	WSAllowedOrigins                                                []string
 	HTTPAddr, MySQLDSN, RedisAddr, RedisPass, JWTSecret, InstanceID string
 	LogLevel, LogFile                                               string
 	LogMaxSizeMB, LogMaxBackups, LogMaxAgeDays                      int
@@ -39,6 +41,17 @@ func Load(configFile string) (Config, error) {
 		RedisAddr: get("PENGUIN_REDIS_ADDR", "127.0.0.1:6379"), RedisPass: get("PENGUIN_REDIS_PASS", ""),
 		JWTSecret: get("PENGUIN_JWT_SECRET", ""), InstanceID: get("PENGUIN_INSTANCE_ID", ""),
 		LogLevel: get("PENGUIN_LOG_LEVEL", "info"), LogFile: get("PENGUIN_LOG_FILE", "logs/server.log"),
+	}
+	for _, value := range strings.Split(get("PENGUIN_WS_ALLOWED_ORIGINS", ""), ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		origin, err := url.Parse(value)
+		if err != nil || (origin.Scheme != "http" && origin.Scheme != "https") || origin.Hostname() == "" || strings.Contains(origin.Host, "*") || origin.User != nil || origin.Path != "" || origin.RawQuery != "" || origin.ForceQuery || strings.Contains(value, "#") {
+			return c, errors.New("PENGUIN_WS_ALLOWED_ORIGINS must contain only http(s) origins without paths, wildcards or credentials")
+		}
+		c.WSAllowedOrigins = append(c.WSAllowedOrigins, strings.ToLower(origin.Scheme+"://"+origin.Host))
 	}
 	for key, target := range map[string]*int{"PENGUIN_LOG_MAX_SIZE_MB": &c.LogMaxSizeMB, "PENGUIN_LOG_MAX_BACKUPS": &c.LogMaxBackups, "PENGUIN_LOG_MAX_AGE_DAYS": &c.LogMaxAgeDays} {
 		fallback := "10"

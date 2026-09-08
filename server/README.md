@@ -112,6 +112,12 @@ docker compose logs -f --tail=100 penguins
 
 源码迁移到新机器时，需一并安全传输 `server/config.docker.yml`；如果该文件不存在，可参考 `server/config.docker.example.yml` 创建并填写账号、密码和至少 32 字节 JWT 密钥。真实配置、日志、宿主机依赖和本地二进制均由 `.dockerignore` 排除，不会进入镜像构建上下文。
 
+## 内网穿透的 WebSocket 来源
+
+使用穿透域名时，浏览器连接同域名的 `/ws`。如果穿透改写了上游 Host，默认同源校验会返回 403，即使 `/readyz` 正常。可配置 `server.ws_allowed_origins: ["https://penguins.iepose.cn"]`，或设置环境变量 `PENGUIN_WS_ALLOWED_ORIGINS=https://penguins.iepose.cn`；多个来源用逗号分隔。
+
+Compose 默认允许 `https://penguins.iepose.cn`，可在宿主机 `.env` 中覆盖。来源必须包含 `http://` 或 `https://` 和实际端口（如有），不能包含路径、通配符或账号信息。修改 Compose 环境变量后执行 `docker compose up -d penguins` 重新创建容器。直接同源访问和无 Origin 的非浏览器客户端仍兼容；其他跨域来源会被拒绝。
+
 ## 统一 HTTP 返回
 
 所有 `/api/*`、`/healthz`、`/readyz` 返回相同结构。HTTP 状态码表达传输结果，`code` 表达稳定业务结果；客户端不能通过中文消息判断错误类别。

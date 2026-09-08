@@ -122,3 +122,60 @@ func TestInvalidWebSocketTokenIsNotDowngradedToGuest(t *testing.T) {
 		t.Fatalf("got %d", w.Code)
 	}
 }
+
+func TestWebSocketOriginsBehindTunnel(t *testing.T) {
+	server := httptest.NewServer(New(handler.Options{
+		Auth: auth.New("test-secret"), Hub: fakeHub{},
+		Logger:           slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		WSAllowedOrigins: []string{"https://penguins.iepose.cn"},
+	}))
+	defer server.Close()
+	for _, tc := range []struct {
+		name    string
+		origins []string
+		allowed bool
+	}{
+		{"tunnel rewrites host", []string{"https://penguins.iepose.cn"}, true},
+		{"same origin", []string{server.URL}, true},
+		{"non browser client", nil, true},
+		{"unknown origin", []string{"https://other.example"}, false},
+		{"suffix attack", []string{"https://penguins.iepose.cn.other.example"}, false},
+		{"wrong scheme", []string{"http://penguins.iepose.cn"}, false},
+		{"wrong port", []string{"https://penguins.iepose.cn:8443"}, false},
+		{"opaque origin", []string{"null"}, false},
+		{"userinfo", []string{"https://user@penguins.iepose.cn"}, false},
+		{"path", []string{"https://penguins.iepose.cn/path"}, false},
+		{"duplicate origins", []string{"https://penguins.iepose.cn", "https://other.example"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := http.Header{"X-Forwarded-Host": []string{"other.example"}}
+			if tc.origins != nil {
+				headers["Origin"] = tc.origins
+			}
+			conn, response, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http")+"/ws", headers)
+			if tc.allowed {
+				if err != nil {
+					t.Fatalf("expected accepted handshake: %v", err)
+				}
+				defer conn.Close()
+				var msg map[string]string
+				if err := conn.ReadJSON(&msg); err != nil {
+					t.Fatal(err)
+				}
+				if msg["type"] != "waiting" {
+					t.Fatal("missing websocket frame")
+				}
+			} else {
+				if conn != nil {
+					conn.Close()
+				}
+				if response != nil {
+					defer response.Body.Close()
+				}
+				if err == nil || response == nil || response.StatusCode != http.StatusForbidden {
+					t.Fatalf("expected forbidden handshake, got %v, %v", response, err)
+				}
+			}
+		})
+	}
+}

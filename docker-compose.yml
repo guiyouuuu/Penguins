@@ -12,6 +12,8 @@ services:
       TZ: Asia/Shanghai
       PENGUIN_ADDR: ":8080"
       PENGUIN_LOG_FILE: /app/logs/server.log
+      # 内网穿透可能改写 Host；仅允许明确配置的站点来源，多个来源以逗号分隔。
+      PENGUIN_WS_ALLOWED_ORIGINS: "${PENGUIN_WS_ALLOWED_ORIGINS:-https://penguins.iepose.cn}"
     volumes:
       # 外部 MySQL / Redis 地址及密码集中在 YAML 中；配置不打进镜像。
       - type: bind

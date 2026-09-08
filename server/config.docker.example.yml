@@ -5,6 +5,7 @@ server:
   request_timeout: 10s
   startup_timeout: 15s
   shutdown_timeout: 10s
+  ws_allowed_origins: []         # 穿透来源也可通过 Compose 环境变量设置
 
 mysql:
   # 修改用户名、密码和数据库名，保留 parseTime=true。

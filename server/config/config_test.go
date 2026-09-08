@@ -89,3 +89,40 @@ func TestMissingFileAndEnvironmentOnlyMode(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestWebSocketAllowedOriginsConfiguration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	content := strings.Replace(validYAML, "  addr: \":8080\"", "  addr: \":8080\"\n  ws_allowed_origins: [\"https://penguins.iepose.cn\"]", 1)
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.WSAllowedOrigins) != 1 || c.WSAllowedOrigins[0] != "https://penguins.iepose.cn" {
+		t.Fatalf("origins: %v", c.WSAllowedOrigins)
+	}
+	t.Setenv("PENGUIN_WS_ALLOWED_ORIGINS", " https://GAME.example:8443, http://localhost:5173 ")
+	c, err = Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.WSAllowedOrigins) != 2 || c.WSAllowedOrigins[0] != "https://game.example:8443" || c.WSAllowedOrigins[1] != "http://localhost:5173" {
+		t.Fatalf("origins: %v", c.WSAllowedOrigins)
+	}
+	t.Setenv("PENGUIN_WS_ALLOWED_ORIGINS", "")
+	c, err = Load(path)
+	if err != nil || len(c.WSAllowedOrigins) != 0 {
+		t.Fatalf("cannot clear file origins: %v, %v", c.WSAllowedOrigins, err)
+	}
+	for _, value := range []string{"*", "https://*.example", "penguins.iepose.cn", "wss://penguins.iepose.cn", "https://example/path", "https://example?", "https://example#", "https://user:private-pass@example", "https://", "null"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("PENGUIN_WS_ALLOWED_ORIGINS", value)
+			_, err := Load(path)
+			if err == nil || strings.Contains(err.Error(), "private-pass") {
+				t.Fatal("invalid origin accepted or secret leaked")
+			}
+		})
+	}
+}

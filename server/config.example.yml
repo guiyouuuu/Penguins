@@ -5,6 +5,7 @@ server:
   request_timeout: 10s           # API 请求超时
   startup_timeout: 15s           # 启动依赖检查超时
   shutdown_timeout: 10s          # 优雅退出总等待时间
+  ws_allowed_origins: []         # 穿透域名来源，例如 ["https://penguins.iepose.cn"]
 
 mysql:
   # 数据库需预先创建；保留 parseTime=true 以解析时间字段。
