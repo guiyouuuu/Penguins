@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>企鹅棋 · Penguin Chess</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cellipse cx='12' cy='12' rx='7' ry='9' fill='%232F3B45'/%3E%3Cellipse cx='12' cy='14' rx='4.2' ry='5.5' fill='%23fff'/%3E%3Ccircle cx='9.6' cy='8.6' r='1.1' fill='%23fff'/%3E%3Ccircle cx='14.4' cy='8.6' r='1.1' fill='%23fff'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- 对局内浮动提示 -->
+      <div id="toast" class="toast hidden"></div>
+      <!-- 菜单 -->
+      <div id="menu-screen" class="screen">
+        <div id="user-bar" class="user-bar">
+          <div id="user-card" class="user-card hidden">
+            <span class="user-avatar">🐧</span>
+            <div class="user-meta">
+              <strong id="user-name"></strong>
+              <span id="user-stats"></span>
+            </div>
+            <button id="btn-logout" class="btn small">退出</button>
+          </div>
+          <button id="btn-login" class="btn small primary">登录 / 注册</button>
+          <button id="btn-rank" class="btn small">🏆 天梯</button>
+        </div>
+        <div class="menu-hero">
+          <svg class="menu-penguin" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="7" ry="9" fill="#2F3B45"/><ellipse cx="12" cy="14" rx="4.2" ry="5.5" fill="#FFFFFF"/><circle cx="9.6" cy="8.6" r="1.1" fill="#FFFFFF"/><circle cx="14.4" cy="8.6" r="1.1" fill="#FFFFFF"/><path d="M10.8 10.6 L13.2 10.6 L12 12.4 Z" fill="#F2A65A"/></svg>
+          <h1>企鹅棋</h1>
+          <p class="menu-sub">在融化的冰面上收集小鱼，围堵对手的企鹅！</p>
+        </div>
+        <div class="menu-cards">
+          <button id="btn-local" class="menu-btn">
+            <span class="menu-ico">🐧🐧</span>
+            <span class="menu-name">本地对弈</span>
+            <span class="menu-desc">同屏轮流，面对面切磋</span>
+          </button>
+          <button id="btn-ai" class="menu-btn">
+            <span class="menu-ico">🤖</span>
+            <span class="menu-name">人机对战</span>
+            <span class="menu-desc">和 AI 企鹅斗智斗勇</span>
+          </button>
+          <button id="btn-create" class="menu-btn">
+            <span class="menu-ico">🔗</span>
+            <span class="menu-name">创建房间</span>
+            <span class="menu-desc">把房间号分享给好友</span>
+          </button>
+          <button id="btn-join" class="menu-btn">
+            <span class="menu-ico">🚪</span>
+            <span class="menu-name">加入房间</span>
+            <span class="menu-desc">输入好友的房间号</span>
+          </button>
+          <button id="btn-match" class="menu-btn">
+            <span class="menu-ico">⚡</span>
+            <span class="menu-name">快速匹配</span>
+            <span class="menu-desc">随机寻找一位对手</span>
+          </button>
+        </div>
+        <div id="join-row" class="join-row hidden">
+          <input id="room-input" maxlength="6" placeholder="房间号" autocomplete="off" />
+          <button id="btn-join-confirm" class="btn primary">进入</button>
+        </div>
+        <div id="menu-tip" class="menu-tip hidden"></div>
+      </div>
+
+      <!-- 对局 -->
+      <div id="game-screen" class="screen hidden">
+        <header class="topbar">
+          <div class="logo">
+            <svg viewBox="0 0 24 24" width="22" height="22"><ellipse cx="12" cy="12" rx="7" ry="9" fill="#2F3B45"/><ellipse cx="12" cy="14" rx="4.2" ry="5.5" fill="#FFFFFF"/><circle cx="9.6" cy="8.6" r="1.1" fill="#FFFFFF"/><circle cx="14.4" cy="8.6" r="1.1" fill="#FFFFFF"/><path d="M10.8 10.6 L13.2 10.6 L12 12.4 Z" fill="#F2A65A"/></svg>
+            <span>企鹅棋</span>
+            <em id="game-subtitle"></em>
+          </div>
+          <div id="scoreboard" class="scoreboard"></div>
+          <div class="top-actions">
+            <button id="btn-undo" class="btn small">悔棋</button>
+            <button id="btn-resign" class="btn small danger">认输</button>
+            <button id="btn-exit" class="btn small">退出</button>
+          </div>
+        </header>
+        <div id="status-card" class="status-card" role="status" aria-live="polite"></div>
+        <main class="game-main">
+          <div class="board-wrap"><canvas id="board"></canvas></div>
+        </main>
+      </div>
+
+      <!-- 登录/注册模态 -->
+      <div id="auth-modal" class="overlay hidden">
+        <div class="overlay-card auth-card">
+          <div class="overlay-icon">🐧</div>
+          <div class="overlay-title" id="auth-title">登录</div>
+          <div class="auth-tabs">
+            <button id="tab-login" class="auth-tab active">登录</button>
+            <button id="tab-register" class="auth-tab">注册</button>
+          </div>
+          <div class="auth-form">
+            <input id="auth-username" placeholder="用户名" maxlength="16" autocomplete="username" />
+            <input id="auth-password" type="password" placeholder="密码" maxlength="64" autocomplete="current-password" />
+            <div id="auth-error" class="auth-error hidden"></div>
+            <button id="auth-submit" class="btn primary auth-submit">登录</button>
+            <button id="auth-cancel" class="btn">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 天梯榜模态 -->
+      <div id="rank-modal" class="overlay hidden">
+        <div class="overlay-card rank-card">
+          <div class="overlay-title">🏆 冰原天梯</div>
+          <div id="rank-list" class="rank-list"></div>
+          <div class="overlay-actions">
+            <button id="rank-close" class="btn">关闭</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 弹窗 -->
+      <div id="overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <div id="overlay-icon" class="overlay-icon"></div>
+          <div id="overlay-title" class="overlay-title"></div>
+          <div id="overlay-body" class="overlay-body"></div>
+          <div id="overlay-actions" class="overlay-actions"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

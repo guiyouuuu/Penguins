@@ -1,0 +1,10 @@
+server/.env*
+server/config.yml
+server/config.docker.yml
+server/logs/
+server/penguin-chess-server
+server/internal/web/dist/
+frontend/node_modules/
+frontend/dist/
+output/
+.DS_Store

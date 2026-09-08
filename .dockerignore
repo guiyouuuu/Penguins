@@ -1,0 +1,14 @@
+.git
+.codex
+.DS_Store
+**/node_modules
+**/dist
+**/logs
+**/.env*
+**/config*.yml
+**/config*.yaml
+server/penguin-chess-server
+**/*_test.go
+test
+docs
+**/*.md

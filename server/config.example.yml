@@ -1,0 +1,25 @@
+# 环境变量优先于本文件；相对路径按服务启动目录解析。
+server:
+  addr: ":8080"                  # HTTP 监听地址
+  instance_id: ""                # 留空自动生成实例标识
+  request_timeout: 10s           # API 请求超时
+  startup_timeout: 15s           # 启动依赖检查超时
+  shutdown_timeout: 10s          # 优雅退出总等待时间
+
+mysql:
+  # 数据库需预先创建；保留 parseTime=true 以解析时间字段。
+  dsn: "game_user:replace-me@tcp(127.0.0.1:3306)/penguin_chess?charset=utf8mb4&parseTime=true&loc=Local"
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+
+auth:
+  jwt_secret: ""                # 必填，至少 32 字节；更换后需重新登录
+
+log:
+  level: info                   # debug / info / warn / error
+  file: "logs/server.log"        # 同时输出控制台，多实例使用不同文件
+  max_size_mb: 10                # 单文件轮转阈值，单位 MB
+  max_backups: 5                 # 最多保留的备份数，自动 gzip 压缩
+  max_age_days: 30               # 备份保留天数

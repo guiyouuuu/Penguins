@@ -1,0 +1,39 @@
+services:
+  penguins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: penguins:local
+    restart: unless-stopped
+    ports:
+      # 默认通过宿主机 8081 端口访问，可用 PENGUIN_PORT 修改。
+      - "${PENGUIN_PORT:-8081}:8080"
+    environment:
+      TZ: Asia/Shanghai
+      PENGUIN_ADDR: ":8080"
+      PENGUIN_LOG_FILE: /app/logs/server.log
+    volumes:
+      # 外部 MySQL / Redis 地址及密码集中在 YAML 中；配置不打进镜像。
+      - type: bind
+        source: ./server/config.docker.yml
+        target: /app/config.yml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./server/logs/docker
+        target: /app/logs
+    # 给应用的 10 秒优雅退出期限预留余量。
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    # 应用日志自行轮转；同时限制 Docker 控制台日志大小。
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

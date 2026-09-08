@@ -1,0 +1,25 @@
+# Docker 专用配置：MySQL 和 Redis 为外部服务，不由 Compose 创建。
+server:
+  addr: ":8080"
+  instance_id: ""
+  request_timeout: 10s
+  startup_timeout: 15s
+  shutdown_timeout: 10s
+
+mysql:
+  # 修改用户名、密码和数据库名，保留 parseTime=true。
+  dsn: "game_user:replace-me@tcp(100.66.1.4:3306)/penguin_chess?charset=utf8mb4&parseTime=true&loc=Local"
+
+redis:
+  addr: "100.66.1.4:6379"
+  password: ""                 # 有密码时填写
+
+auth:
+  jwt_secret: ""               # 必填，至少 32 字节
+
+log:
+  level: info                  # debug / info / warn / error
+  file: "/app/logs/server.log"
+  max_size_mb: 10
+  max_backups: 5
+  max_age_days: 30
