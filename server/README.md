@@ -118,6 +118,8 @@ docker compose logs -f --tail=100 penguins
 
 Compose 默认允许 `https://penguins.iepose.cn`，可在宿主机 `.env` 中覆盖。来源必须包含 `http://` 或 `https://` 和实际端口（如有），不能包含路径、通配符或账号信息。修改 Compose 环境变量后执行 `docker compose up -d penguins` 重新创建容器。直接同源访问和无 Origin 的非浏览器客户端仍兼容；其他跨域来源会被拒绝。
 
+当前 NodeBabyLink 穿透会将所有请求的 Origin 固定改为 `https://127.0.0.1:8081`。该部署在服务器 `.env` 中设置 `PENGUIN_WS_ALLOWED_ORIGINS=https://penguins.iepose.cn,https://127.0.0.1:8081`；此内部来源仅用于该穿透部署，不作为程序默认值。如果穿透覆盖原始 Origin，应用无法区分原始站点，白名单只能校验改写后的来源，登录令牌验证仍然生效。需要端到端来源限制时，应在穿透端保留原始 Origin，并删除内部来源配置。
+
 ## 统一 HTTP 返回
 
 所有 `/api/*`、`/healthz`、`/readyz` 返回相同结构。HTTP 状态码表达传输结果，`code` 表达稳定业务结果；客户端不能通过中文消息判断错误类别。
