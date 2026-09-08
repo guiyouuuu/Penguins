@@ -32,12 +32,14 @@ const (
 
 // RoomMeta 房间元数据（Redis HASH）
 type RoomMeta struct {
-	Mode      string `json:"mode"`      // pvp | ai
-	Seat0UID  int64  `json:"seat0_uid"` // 0 = 游客
-	Seat0Name string `json:"seat0_name"`
-	Seat1UID  int64  `json:"seat1_uid"`
-	Seat1Name string `json:"seat1_name"`
-	Full      bool   `json:"full"`
+	Mode       string `json:"mode"`      // pvp | ai
+	Seat0UID   int64  `json:"seat0_uid"` // 0 = 游客
+	Seat0Name  string `json:"seat0_name"`
+	Seat1UID   int64  `json:"seat1_uid"`
+	Seat1Name  string `json:"seat1_name"`
+	Full       bool   `json:"full"`
+	Started    bool   `json:"started"`
+	GuestReady bool   `json:"guest_ready"`
 }
 
 // BroadCastMsg Pub/Sub 广播消息（实例间协调）
@@ -47,6 +49,7 @@ type BroadCastMsg struct {
 	TargetConn string          `json:"target_conn,omitempty"` // 定向连接（跨实例路由）
 	BindSeat   int             `json:"bind_seat,omitempty"`   // 绑定席位（-1 无）
 	LeaveSeat  int             `json:"leave_seat,omitempty"`  // 离房席位（-1 无）
+	KeepRoom   bool            `json:"keep_room,omitempty"`   // 开局前客人离开，保留房主
 }
 
 // 常见错误
@@ -97,7 +100,7 @@ func (s *RoomStore) CreateRoom(mode string, uid int64, name string) (string, err
 	if err != nil {
 		return "", err
 	}
-	meta := RoomMeta{Mode: mode, Seat0UID: uid, Seat0Name: name}
+	meta := RoomMeta{Mode: mode, Seat0UID: uid, Seat0Name: name, Started: mode == "ai"}
 	state := newGameFor(mode, uid, name)
 	if err := s.saveMeta(code, &meta); err != nil {
 		return "", err
@@ -135,6 +138,8 @@ func (s *RoomStore) GetMeta(roomID string) (*RoomMeta, error) {
 	m.Seat1UID = parseInt(data["seat1_uid"])
 	m.Seat1Name = data["seat1_name"]
 	m.Full = data["full"] == "1"
+	m.Started = data["started"] == "1"
+	m.GuestReady = data["guest_ready"] == "1"
 	return m, nil
 }
 
@@ -148,12 +153,14 @@ func parseInt(s string) int64 {
 func (s *RoomStore) saveMeta(roomID string, m *RoomMeta) error {
 	key := fmt.Sprintf(keyRoomMeta, roomID)
 	fields := map[string]any{
-		"mode":       m.Mode,
-		"seat0_uid":  m.Seat0UID,
-		"seat0_name": m.Seat0Name,
-		"seat1_uid":  m.Seat1UID,
-		"seat1_name": m.Seat1Name,
-		"full":       m.Full,
+		"mode":        m.Mode,
+		"seat0_uid":   m.Seat0UID,
+		"seat0_name":  m.Seat0Name,
+		"seat1_uid":   m.Seat1UID,
+		"seat1_name":  m.Seat1Name,
+		"full":        m.Full,
+		"started":     m.Started,
+		"guest_ready": m.GuestReady,
 	}
 	pipe := s.rdb.TxPipeline()
 	pipe.HSet(s.ctx, key, fields)
@@ -170,15 +177,24 @@ func (s *RoomStore) JoinSeat1(roomID string, uid int64, name string) error {
 		if redis.call('HLEN', KEYS[1]) == 0 then
 			return 0
 		end
+		if redis.call('HGET', KEYS[1], 'mode') ~= 'pvp' then return 0 end
+		if redis.call('HGET', KEYS[1], 'seat0_uid') == ARGV[1] then return -1 end
+		if redis.call('HGET', KEYS[1], 'started') == '1' then return -2 end
 		if redis.call('HGET', KEYS[1], 'full') == '1' then
 			return 0
 		end
-		redis.call('HSET', KEYS[1], 'full', '1', 'seat1_uid', ARGV[1], 'seat1_name', ARGV[2])
+		redis.call('HSET', KEYS[1], 'full', '1', 'seat1_uid', ARGV[1], 'seat1_name', ARGV[2], 'guest_ready', '0')
 		redis.call('EXPIRE', KEYS[1], ARGV[3])
 		return 1
 	`, []string{key}, fmt.Sprintf("%d", uid), name, fmt.Sprintf("%d", int64(roomTTL.Seconds()))).Int()
 	if err != nil {
 		return err
+	}
+	if ok == -1 {
+		return apperr.SelfJoin
+	}
+	if ok == -2 {
+		return apperr.RoomStarted
 	}
 	if ok != 1 {
 		return apperr.RoomFull
@@ -217,11 +233,15 @@ func (s *RoomStore) saveState(roomID string, st *game.GameState) error {
 
 // withLock 房间级分布式锁（SETNX + 随机 token，Lua 安全释放；短暂重试缓解并发冲突）
 func (s *RoomStore) withLock(roomID string, fn func() error) error {
+	return s.withLockContext(s.ctx, roomID, fn)
+}
+
+func (s *RoomStore) withLockContext(ctx context.Context, roomID string, fn func() error) error {
 	lockKey := fmt.Sprintf(keyRoomLock, roomID)
 	token := fmt.Sprintf("%d-%d", time.Now().UnixNano(), rand.Int63())
 	acquired := false
 	for i := 0; i < 10; i++ {
-		ok, err := s.rdb.SetNX(s.ctx, lockKey, token, lockTTL).Result()
+		ok, err := s.rdb.SetNX(ctx, lockKey, token, lockTTL).Result()
 		if err != nil {
 			return fmt.Errorf("获取房间锁失败: %w", err)
 		}
@@ -229,12 +249,14 @@ func (s *RoomStore) withLock(roomID string, fn func() error) error {
 			acquired = true
 			break
 		}
-		time.Sleep(20 * time.Millisecond)
+		if !waitFor(ctx, 20*time.Millisecond) {
+			return ctx.Err()
+		}
 	}
 	if !acquired {
 		return apperr.RateLimited
 	}
-	defer s.rdb.Eval(s.ctx, `
+	defer s.rdb.Eval(ctx, `
 		if redis.call('GET', KEYS[1]) == ARGV[1] then
 			return redis.call('DEL', KEYS[1])
 		end
@@ -265,7 +287,6 @@ func (s *RoomStore) CloseRoomContext(ctx context.Context, roomID string) error {
 	pipe := s.rdb.TxPipeline()
 	pipe.Del(ctx, fmt.Sprintf(keyRoomMeta, roomID))
 	pipe.Del(ctx, fmt.Sprintf(keyRoomState, roomID))
-	pipe.Del(ctx, fmt.Sprintf(keyRoomLock, roomID))
 	pipe.SRem(ctx, keyRoomIndex, roomID)
 	_, err := pipe.Exec(ctx)
 	return err

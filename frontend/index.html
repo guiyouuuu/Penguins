@@ -57,10 +57,32 @@
           </button>
         </div>
         <div id="join-row" class="join-row hidden">
-          <input id="room-input" maxlength="6" placeholder="房间号" autocomplete="off" />
+          <input id="room-input" maxlength="4" placeholder="4 位房间号" aria-label="房间号" autocomplete="off" />
           <button id="btn-join-confirm" class="btn primary">进入</button>
         </div>
-        <div id="menu-tip" class="menu-tip hidden"></div>
+        <section id="room-lobby" class="room-lobby hidden" aria-label="等待对局">
+          <p id="lobby-status" role="status"></p>
+          <div id="room-share" class="room-share hidden">
+            <label for="room-code">房间号</label>
+            <input id="room-code" readonly aria-label="当前房间号" />
+            <div id="invite-actions" class="lobby-actions">
+              <button id="btn-copy-room" class="btn">复制房间号</button>
+              <button id="btn-copy-invite" class="btn primary">复制邀请链接</button>
+            </div>
+            <div id="invite-fallback" class="invite-fallback hidden">
+              <label for="invite-link">邀请链接</label>
+              <input id="invite-link" readonly />
+            </div>
+          </div>
+          <div id="lobby-players" class="lobby-players hidden">
+            <div class="lobby-player"><span>房主</span><strong id="lobby-host"></strong><span>已就位</span></div>
+            <div class="lobby-player"><span>好友</span><strong id="lobby-guest"></strong><span id="lobby-guest-status"></span></div>
+          </div>
+          <label id="ready-control" class="ready-control hidden"><input id="guest-ready" type="checkbox" />准备</label>
+          <button id="btn-start-game" class="btn primary hidden" disabled>开始游戏</button>
+          <button id="btn-cancel-wait" class="btn small">取消等待</button>
+        </section>
+        <div id="menu-tip" class="menu-tip hidden" role="status"></div>
       </div>
 
       <!-- 对局 -->

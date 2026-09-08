@@ -45,7 +45,7 @@ func (h *Hub) subscribeLoop(rdb *redis.Client) {
 func (h *Hub) dispatch(bm BroadCastMsg) {
 	defer logging.Recover(h.logger, "broadcast.dispatch")
 	// 1. 离房：关房 + 通知剩余玩家
-	if bm.LeaveSeat >= 0 {
+	if bm.LeaveSeat >= 0 && !bm.KeepRoom {
 		h.mu.Lock()
 		seats := h.localRooms[bm.RoomID]
 		var rest []*Client

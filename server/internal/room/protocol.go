@@ -12,6 +12,17 @@ type msgWaiting struct {
 	Type string `json:"type"`
 }
 
+type msgLobby struct {
+	Type  string    `json:"type"`
+	Room  string    `json:"room"`
+	Names [2]string `json:"names"`
+	Ready bool      `json:"ready"`
+}
+
+func lobbyMessage(code string, meta *RoomMeta) msgLobby {
+	return msgLobby{Type: "lobby", Room: code, Names: [2]string{meta.Seat0Name, meta.Seat1Name}, Ready: meta.GuestReady}
+}
+
 type msgStart struct {
 	Type  string          `json:"type"`
 	State *game.GameState `json:"state"`
@@ -45,9 +56,10 @@ type msgError struct {
 }
 
 type inMsg struct {
-	Type string `json:"type"`
-	Room string `json:"room"`
-	Tile int    `json:"tile"`
-	From int    `json:"from"`
-	To   int    `json:"to"`
+	Type  string `json:"type"`
+	Room  string `json:"room"`
+	Tile  int    `json:"tile"`
+	From  int    `json:"from"`
+	To    int    `json:"to"`
+	Ready bool   `json:"ready"`
 }

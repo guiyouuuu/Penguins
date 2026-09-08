@@ -6,6 +6,8 @@ import { BoardRenderer } from '../render/renderer';
 import { AuthUI } from './auth';
 
 type Mode = 'menu' | 'local' | 'ai' | 'online';
+type NetAction = 'ai' | 'create' | 'match' | 'join';
+const ROOM_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -25,6 +27,13 @@ export class App {
   private rematchReady = false;
   private queuedStates: ServerMsg[] = [];
   private gameOverTimer = 0;
+  private lobbyAction: NetAction | null = null;
+  private lobbyRoom = '';
+  private netRequest = 0;
+  private lobbyNames: [string, string] = ['', ''];
+  private guestReady = false;
+  private lobbyPending = false;
+  private loginPending = false;
 
   private renderer: BoardRenderer;
   private net = new NetClient();
@@ -39,7 +48,10 @@ export class App {
     this.bindBoard();
     this.bindTopActions();
     // 登录/退出后重连，让 WebSocket 携带最新身份
-    this.auth.onAuthChange = () => this.net.close();
+    this.auth.onAuthChange = () => {
+      if (this.lobbyAction) this.cancelWaiting('登录状态已更新，请重新进入房间');
+      else this.net.close();
+    };
     window.addEventListener('resize', () => {
       if (this.state) this.renderer.resize(this.state);
     });
@@ -64,13 +76,14 @@ export class App {
     $('btn-create').addEventListener('click', () => this.startNet('create'));
     $('btn-match').addEventListener('click', () => this.startNet('match'));
     $('btn-join').addEventListener('click', () => {
+      if (this.lobbyAction) return;
       $('join-row').classList.toggle('hidden');
       $('room-input').focus();
     });
     $('btn-join-confirm').addEventListener('click', () => {
       const room = $<HTMLInputElement>('room-input').value.trim().toUpperCase();
-      if (room.length < 4) {
-        this.menuTip('房间号至少 4 位');
+      if (!ROOM_CODE.test(room)) {
+        this.menuTip('请输入有效的 4 位房间号');
         return;
       }
       this.startNet('join', room);
@@ -78,25 +91,125 @@ export class App {
     $('room-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') $('btn-join-confirm').click();
     });
+    $('btn-cancel-wait').addEventListener('click', () => this.cancelWaiting(this.lobbyRoom ? '已退出房间' : '已取消等待'));
+    $('btn-copy-room').addEventListener('click', () => this.copyInvitation(false));
+    $('btn-copy-invite').addEventListener('click', () => this.copyInvitation(true));
+    $('btn-start-game').addEventListener('click', () => {
+      if (this.lobbyPending || this.mySeat !== 0 || !this.guestReady) return;
+      this.lobbyPending = true;
+      this.renderLobby();
+      this.net.send({ type: 'start_game' });
+    });
+    $('guest-ready').addEventListener('change', () => {
+      if (this.lobbyPending || this.mySeat !== 1) return;
+      const ready = $<HTMLInputElement>('guest-ready').checked;
+      this.lobbyPending = true;
+      this.renderLobby();
+      this.net.send({ type: 'ready', ready });
+    });
+    const invitedRoom = new URL(location.href).searchParams.get('room')?.trim().toUpperCase();
+    if (invitedRoom && ROOM_CODE.test(invitedRoom)) {
+      $<HTMLInputElement>('room-input').value = invitedRoom;
+      $('join-row').classList.remove('hidden');
+    }
   }
 
   private menuTip(text: string): void {
     const tip = $('menu-tip');
     tip.textContent = text;
-    tip.classList.remove('hidden');
+    tip.classList.toggle('hidden', !text);
   }
 
-  private async startNet(action: 'ai' | 'create' | 'match' | 'join', room = ''): Promise<void> {
+  private renderLobby(): void {
+    const waiting = this.lobbyAction !== null;
+    for (const id of ['btn-local', 'btn-ai', 'btn-create', 'btn-match', 'btn-join', 'btn-join-confirm', 'room-input']) {
+      $<HTMLButtonElement | HTMLInputElement>(id).disabled = waiting;
+    }
+    // 等待时收起模式入口，移动端也能完整显示房间和邀请操作。
+    $('menu-screen').classList.toggle('waiting', waiting);
+    $('room-lobby').classList.toggle('hidden', !waiting);
+    $('room-share').classList.toggle('hidden', !this.lobbyRoom);
+    $<HTMLInputElement>('room-code').value = this.lobbyRoom;
+    const inRoom = waiting && !!this.lobbyRoom && !!this.lobbyNames[0];
+    $('lobby-players').classList.toggle('hidden', !inRoom);
+    $('lobby-host').textContent = this.lobbyNames[0];
+    $('lobby-guest').textContent = this.lobbyNames[1] || '空位';
+    $('lobby-guest-status').textContent = !this.lobbyNames[1] ? '等待加入' : this.guestReady ? '已准备' : '未准备';
+    $('ready-control').classList.toggle('hidden', !inRoom || this.mySeat !== 1);
+    const ready = $<HTMLInputElement>('guest-ready');
+    if (!this.lobbyPending) ready.checked = this.guestReady;
+    ready.disabled = this.lobbyPending;
+    const start = $<HTMLButtonElement>('btn-start-game');
+    start.classList.toggle('hidden', !inRoom || this.mySeat !== 0);
+    start.disabled = !this.lobbyNames[1] || !this.guestReady || this.lobbyPending;
+    start.textContent = this.lobbyPending ? '正在开始…' : '开始游戏';
+    $('invite-actions').classList.toggle('hidden', this.mySeat !== 0);
+    $('btn-cancel-wait').textContent = !this.lobbyRoom ? '取消等待' : this.mySeat === 0 ? '关闭房间' : '退出房间';
+    if (!waiting) $('invite-fallback').classList.add('hidden');
+  }
+
+  private cancelWaiting(message: string): void {
+    ++this.netRequest;
+    this.net.close();
+    this.lobbyAction = null;
+    this.lobbyRoom = '';
+    this.lobbyNames = ['', ''];
+    this.guestReady = false;
+    this.lobbyPending = false;
+    this.renderLobby();
+    this.menuTip(message);
+  }
+
+  private async copyInvitation(link: boolean): Promise<void> {
+    if (!this.lobbyRoom) return;
+    const request = this.netRequest;
+    const url = new URL(location.pathname, location.origin);
+    url.searchParams.set('room', this.lobbyRoom);
+    const text = link ? url.href : this.lobbyRoom;
+    try {
+      await navigator.clipboard.writeText(text);
+      if (request === this.netRequest) this.menuTip(link ? '邀请链接已复制' : '房间号已复制');
+    } catch {
+      if (request !== this.netRequest) return;
+      const input = $<HTMLInputElement>(link ? 'invite-link' : 'room-code');
+      if (link) {
+        input.value = text;
+        $('invite-fallback').classList.remove('hidden');
+      }
+      input.focus();
+      input.select();
+      this.menuTip('自动复制失败，请手动复制已选中的内容');
+    }
+  }
+
+  private async startNet(action: NetAction, room = '', requireLogin = false): Promise<void> {
+    if (this.mode !== 'menu' || this.lobbyAction || this.loginPending) return;
+    const request = ++this.netRequest;
+    if (action !== 'ai' && (!this.auth.currentUser || requireLogin)) {
+      this.loginPending = true;
+      const loggedIn = await this.auth.requestLogin(requireLogin);
+      this.loginPending = false;
+      if (!loggedIn || request !== this.netRequest) return;
+    }
+    this.lobbyAction = action;
+    this.lobbyRoom = '';
+    this.lobbyNames = ['', ''];
+    this.guestReady = false;
+    this.lobbyPending = false;
+    this.renderLobby();
     this.menuTip('');
+    $('lobby-status').textContent = '正在连接服务器…';
     try {
       if (!this.net.connected) {
-        this.menuTip('正在连接服务器…');
         await this.net.connect();
       }
     } catch {
-      this.menuTip('无法连接服务器，请确认后端已启动');
+      if (request === this.netRequest) this.cancelWaiting('无法连接服务器，请稍后重试');
       return;
     }
+    if (request !== this.netRequest) return;
+    $('lobby-status').textContent = action === 'create' ? '正在创建房间…'
+      : action === 'join' ? '正在加入房间…' : action === 'match' ? '正在匹配对手…' : '正在准备人机对局…';
     if (action === 'ai') {
       this.setNetMode('ai');
       this.net.send({ type: 'play_ai' });
@@ -111,6 +224,7 @@ export class App {
   // ---------- 对局生命周期 ----------
 
   private startLocal(): void {
+    if (this.lobbyAction) return;
     this.mode = 'local';
     this.mySeat = 0;
     this.history = [];
@@ -145,6 +259,10 @@ export class App {
     $('user-bar').classList.remove('hidden');
     this.net.send({ type: 'leave' });
     this.net.close();
+    ++this.netRequest;
+    this.lobbyAction = null;
+    this.lobbyRoom = '';
+    this.renderLobby();
     this.mode = 'menu';
     this.state = null;
     this.resetSelection();
@@ -290,12 +408,32 @@ export class App {
     switch (msg.type) {
       case 'room':
         this.mySeat = msg.you;
-        this.menuTip(`房间已创建：${msg.room}（等待对手加入…）`);
+        if (this.lobbyAction === 'create' || this.lobbyAction === 'join') {
+          this.lobbyRoom = msg.room;
+          this.renderLobby();
+          $('lobby-status').textContent = msg.you === 0 ? '房间已创建，等待好友加入' : '正在同步房间…';
+        }
         break;
       case 'waiting':
-        this.menuTip('正在等待对手…');
+        $('lobby-status').textContent = this.lobbyRoom ? '等待好友加入' : '正在匹配对手…';
+        break;
+      case 'lobby':
+        if (!this.lobbyAction || msg.room !== this.lobbyRoom) break;
+        this.lobbyNames = msg.names;
+        this.guestReady = msg.ready;
+        this.lobbyPending = false;
+        this.renderLobby();
+        $('lobby-status').textContent = !msg.names[1] ? '等待好友加入'
+          : this.mySeat === 0 ? (msg.ready ? '好友已准备，可以开始游戏' : '等待好友准备')
+          : msg.ready ? '已准备，等待房主开始' : '已加入房间';
+        this.menuTip('');
         break;
       case 'start':
+        ++this.netRequest;
+        this.lobbyAction = null;
+        this.lobbyRoom = '';
+        this.renderLobby();
+        this.menuTip('');
         this.mode = this.netMode;
         this.state = msg.state;
         this.history = [];
@@ -326,7 +464,11 @@ export class App {
         break;
       }
       case 'opponent_left':
-        this.showOverlay('🐧💨', '对手离开了', '对方已退出房间，这局算你赢啦～', [
+        if (this.mode === 'menu') {
+          this.cancelWaiting('对方已退出房间，请重新创建或加入');
+          break;
+        }
+        this.showOverlay('🐧💨', '对手离开了', '房间已关闭，可以返回大厅开始新的对局', [
           { label: '返回菜单', action: () => this.backToMenu() },
         ]);
         break;
@@ -341,7 +483,18 @@ export class App {
         break;
       case 'error':
         this.busy = false;
-        if (this.mode === 'menu') this.menuTip(msg.msg);
+        if (this.mode === 'menu') {
+          const action = this.lobbyAction;
+          const room = this.lobbyRoom || $<HTMLInputElement>('room-input').value.trim().toUpperCase();
+          if (this.lobbyRoom && msg.code !== 30001 && msg.code !== 20001) {
+            this.lobbyPending = false;
+            this.renderLobby();
+            this.menuTip(msg.msg);
+          } else {
+            this.cancelWaiting(msg.msg);
+            if (msg.code === 20001 && action) void this.startNet(action, room, true);
+          }
+        }
         else {
           this.showToast(msg.msg);
           this.refreshHUD();
@@ -359,6 +512,9 @@ export class App {
   bindNet(): void {
     this.net.onMessage = (msg) => this.handleServerMsg(msg);
     this.net.onClose = () => {
+      if (this.mode === 'menu' && this.lobbyAction) {
+        this.cancelWaiting('连接已断开，请重新创建或加入房间');
+      }
       if (this.mode === 'online' || this.mode === 'ai') {
         this.showOverlay('📡', '连接已断开', '与服务器的连接中断了', [
           { label: '返回菜单', action: () => this.backToMenu() },

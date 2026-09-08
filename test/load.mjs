@@ -83,6 +83,9 @@ function autoPlayer(token, name) {
     const msg = JSON.parse(ev.data);
     if (msg.type === 'room') {
       seat = msg.you;
+    } else if (msg.type === 'lobby') {
+      if (seat === 1 && !msg.ready) ws.send(JSON.stringify({ type: 'ready', ready: true }));
+      if (seat === 0 && msg.ready) ws.send(JSON.stringify({ type: 'start_game' }));
     } else if (msg.type === 'start') {
       state = msg.state;
       if (state.turn === seat) playTurn();

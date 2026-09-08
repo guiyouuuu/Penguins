@@ -29,9 +29,16 @@ const wsB = await client(t1, 'B');
 console.log('sockets open');
 
 let roomCode = '';
+let startState = null;
 wsA.addEventListener('message', (ev) => {
   const m = JSON.parse(ev.data);
   if (m.type === 'room') roomCode = m.room;
+  if (m.type === 'lobby' && m.ready) wsA.send(JSON.stringify({ type: 'start_game' }));
+  if (m.type === 'start') startState = m.state;
+});
+wsB.addEventListener('message', (ev) => {
+  const m = JSON.parse(ev.data);
+  if (m.type === 'lobby' && !m.ready) wsB.send(JSON.stringify({ type: 'ready', ready: true }));
 });
 wsA.send(JSON.stringify({ type: 'create_room' }));
 await new Promise((r) => setTimeout(r, 300));
@@ -47,11 +54,6 @@ execSync(
   { cwd: new URL('..', import.meta.url).pathname + 'frontend' },
 );
 const G = await import('/tmp/penguin-game.mjs');
-let startState = null;
-wsA.addEventListener('message', (ev) => {
-  const m = JSON.parse(ev.data);
-  if (m.type === 'start') startState = m.state;
-});
 await new Promise((r) => setTimeout(r, 300));
 const tile = startState ? G.legalPlacements(startState)[0] : 0;
 console.log('placing tile =', tile);

@@ -172,7 +172,11 @@ JWT 使用独立的至少 32 字节密钥。更换密钥会使已有令牌失效
 | 50000 | 未预期内部错误 |
 | 50001 | 依赖暂时不可用 |
 
-WebSocket 成功事件保留 `type/state/last/...` 协议，避免破坏对局同步。错误事件统一使用同一套错误码，`msg` 仅为旧客户端兼容字段：
+好友房使用显式等待流程：`create_room` / `join_room` 返回 `room` 席位信息，并通过 `lobby` 广播 `room`、`names`（房主、好友昵称）和 `ready`。好友发送 `{"type":"ready","ready":true}` 准备（`false` 取消），房主发送 `{"type":"start_game"}` 开局。仅在好友已准备时开局，开局前禁止走棋、认输和再来一局。快速匹配、人机对战仍自动开局。
+
+好友在开局前退出或断线会释放客人席位，房主可以继续邀请；房主退出则关闭房间。不能加入自己创建的房间、人机房、已满或已开始的房间。房间操作使用同一把 Redis 分布式锁，离房清理在独立期限内等待繁忙房间。
+
+对局中的 `start/state/over` 消息保持原有格式。错误事件统一使用同一套错误码，`msg` 仅为旧客户端兼容字段：
 
 ```json
 {"type":"error","code":30005,"message":"还没轮到你","msg":"还没轮到你","data":null,"requestId":"..."}
@@ -215,10 +219,12 @@ go build -o penguin-chess-server ./cmd/api
 仓库根目录：
 
 ```bash
-node --test test/game-regression.mjs
+node --test test/game-regression.mjs test/lobby-regression.mjs
 PENGUIN_BASE_URL=http://127.0.0.1:8081 node test/api-contract.mjs
 PENGUIN_BASE_URL=http://127.0.0.1:8081 node test/load.mjs 2
 PENGUIN_WS_URL=ws://127.0.0.1:8081/ws node test/live-game.mjs
 ```
 
 `go test` 使用伪仓储、httptest 和 miniredis，不连接真实服务。`load.mjs` 属于显式集成测试，会创建测试账号和对局记录；只用于开发数据库。新增功能时为业务错误、异常分支和并发边界补测试，提交前执行格式化、race 测试、vet 和构建。
+
+浏览器流程回归使用隔离 Redis 和两个 Hub 实例，登录接口仅为测试夹具，不连接生产账号。先启动 Vite，再在 `server` 运行 `PENGUIN_BROWSER_FIXTURE_ADDR=127.0.0.1:8080 go test ./internal/room -run TestBrowserLobbyFixture -v -count=1`，随后在仓库根目录运行 `PENGUIN_FIXTURE_DONE_URL=http://127.0.0.1:8080/done node test/browser-lobby.mjs`。需要可用的 Playwright；可通过 `PLAYWRIGHT_MODULE` 和 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定已有安装路径。

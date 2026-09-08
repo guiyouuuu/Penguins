@@ -196,6 +196,9 @@ func (h *Hub) tryPair(c *Client, me queueEntry) (bool, error) {
 		if err := h.rs.saveState(code, state); err != nil {
 			return false, err
 		}
+		if err := h.rs.rdb.HSet(h.ctx, metaKey(code), "started", "1").Err(); err != nil {
+			return false, err
+		}
 		// 我方本地绑定 seat0 并告知房间号
 		h.bindLocal(c, code, 0)
 		c.writeJSON(msgRoom{Type: "room", Room: code, You: 0})

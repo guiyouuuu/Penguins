@@ -19,6 +19,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 export class AuthUI {
   private authMode: 'login' | 'register' = 'login';
   private user: UserProfile | null = null;
+  private loginResult: ((success: boolean) => void) | null = null;
   /** 登录态变化（登录成功 / 退出登录） */
   onAuthChange: () => void = () => {};
 
@@ -34,6 +35,16 @@ export class AuthUI {
 
   get currentUser(): UserProfile | null {
     return this.user;
+  }
+
+  requestLogin(resetSession = false): Promise<boolean> {
+    if (resetSession) {
+      this.user = null;
+      clearSession();
+      this.render();
+    }
+    this.openAuthModal();
+    return new Promise(resolve => { this.loginResult = resolve; });
   }
 
   /** 重新拉取档案（对局结束后调用，刷新胜率与 Elo） */
@@ -56,7 +67,11 @@ export class AuthUI {
   private bindAuthModal(): void {
     $('tab-login').addEventListener('click', () => this.switchAuthMode('login'));
     $('tab-register').addEventListener('click', () => this.switchAuthMode('register'));
-    $('auth-cancel').addEventListener('click', () => this.closeAuthModal());
+    $('auth-cancel').addEventListener('click', () => {
+      this.closeAuthModal();
+      this.loginResult?.(false);
+      this.loginResult = null;
+    });
     $('auth-submit').addEventListener('click', () => void this.submitAuth());
     $('auth-password').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') $('auth-submit').click();
@@ -116,6 +131,8 @@ export class AuthUI {
       this.closeAuthModal();
       this.render();
       this.onAuthChange();
+      this.loginResult?.(true);
+      this.loginResult = null;
     } catch (e) {
       this.authError((e as Error).message || '请求失败，请稍后重试');
     } finally {

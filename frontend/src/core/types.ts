@@ -53,6 +53,8 @@ export type ClientMsg =
   | { type: 'join_room'; room: string }
   | { type: 'quick_match' }
   | { type: 'play_ai' }
+  | { type: 'ready'; ready: boolean }
+  | { type: 'start_game' }
   | { type: 'place'; tile: number }
   | { type: 'move'; from: number; to: number }
   | { type: 'resign' }
@@ -63,6 +65,7 @@ export type ClientMsg =
 export type ServerMsg =
   | { type: 'room'; room: string; you: number }
   | { type: 'waiting' }
+  | { type: 'lobby'; room: string; names: [string, string]; ready: boolean }
   | { type: 'start'; state: GameState; names: [string, string] }
   | { type: 'state'; state: GameState; last: Move | null }
   | { type: 'over'; state: GameState; winner: number; last: Move | null }

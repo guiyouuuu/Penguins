@@ -264,7 +264,13 @@ ok(roomMsg && roomMsg.you === 0, 'A 坐席 0');
 const wsB = await makeAuthClient(tokenB);
 const startAB = expect(wsA, (m) => m.type === 'start', 'A 收到开局');
 const startB = expect(wsB, (m) => m.type === 'start', 'B 收到开局');
+const joinedB = expect(wsB, (m) => m.type === 'lobby' && m.names[1], 'B 进入等待房间');
 wsB.send(JSON.stringify({ type: 'join_room', room: roomMsg.room }));
+await joinedB;
+const readyA = expect(wsA, (m) => m.type === 'lobby' && m.ready, 'A 收到好友准备');
+wsB.send(JSON.stringify({ type: 'ready', ready: true }));
+await readyA;
+wsA.send(JSON.stringify({ type: 'start_game' }));
 const [sA, sB] = await Promise.all([startAB, startB]);
 if (sA && sB) {
   ok(sA.state.tiles.length === 60 && sB.state.tiles.length === 60, '双方同步初始局面');

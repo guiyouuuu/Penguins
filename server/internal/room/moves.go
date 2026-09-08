@@ -27,6 +27,9 @@ func (h *Hub) playerMove(c *Client, mv *game.Move) {
 		if meta == nil {
 			return errRoomGone
 		}
+		if !meta.Started {
+			return apperr.BadPhase
+		}
 		state, err := h.rs.GetState(roomID)
 		if err != nil {
 			return err
@@ -154,6 +157,9 @@ func (h *Hub) resign(c *Client) {
 		if meta == nil {
 			return errRoomGone
 		}
+		if !meta.Started {
+			return apperr.BadPhase
+		}
 		state, err := h.rs.GetState(roomID)
 		if err != nil {
 			return err
@@ -191,6 +197,13 @@ func (h *Hub) rematch(c *Client) {
 		}
 		if meta == nil {
 			return errRoomGone
+		}
+		state, err := h.rs.GetState(roomID)
+		if err != nil {
+			return err
+		}
+		if !meta.Started || state == nil || state.Phase != game.PhaseFinished {
+			return apperr.BadPhase
 		}
 		if meta.Mode == "ai" {
 			// AI 房直接重开

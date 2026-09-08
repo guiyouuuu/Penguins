@@ -161,6 +161,69 @@ body {
   background: rgba(95, 184, 160, 0.12);
   border-radius: 999px;
   padding: 8px 18px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+#menu-screen.waiting .menu-cards,
+#menu-screen.waiting .join-row { display: none; }
+.menu-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+.room-lobby, .room-share {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 480px;
+  text-align: center;
+}
+.room-lobby { padding-top: 20px; border-top: 1px solid var(--card-border); }
+.room-share label { font-size: 14px; color: var(--ink-soft); }
+#room-code {
+  width: 180px;
+  height: 54px;
+  font: 700 32px var(--font);
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--mint-deep);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card);
+  user-select: text;
+}
+.lobby-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.invite-fallback { width: 100%; }
+.lobby-players { width: 100%; border-top: 1px solid var(--card-border); }
+.lobby-player {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+  font-size: 13px;
+}
+.lobby-player strong { overflow-wrap: anywhere; font-size: 15px; }
+.lobby-player > span:last-child { text-align: right; }
+.ready-control { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; }
+.ready-control input { width: 20px; height: 20px; accent-color: var(--mint-deep); }
+#invite-link {
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  font: 14px var(--font);
+  user-select: text;
+}
+@media (max-height: 720px) {
+  #menu-screen.waiting { justify-content: flex-start; gap: 18px; padding-top: 76px; overflow-y: auto; }
+  #menu-screen.waiting .menu-penguin { width: 48px; height: 48px; }
+  #menu-screen.waiting .menu-hero { display: none; }
 }
 
 /* ---------- 按钮 ---------- */
@@ -512,6 +575,18 @@ body {
 .user-meta span {
   font-size: 11px;
   color: var(--ink-soft);
+}
+
+@media (max-width: 480px) {
+  .user-bar { left: 12px; right: 12px; justify-content: flex-end; gap: 8px; }
+  .user-card { min-width: 0; }
+  .user-avatar, .user-bar .btn { flex-shrink: 0; }
+  .user-bar .btn { white-space: nowrap; }
+  .user-meta { min-width: 0; }
+  .user-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+@media (max-width: 360px) {
+  .user-meta span, .user-avatar { display: none; }
 }
 
 .auth-tabs {

@@ -51,6 +51,9 @@ var (
 	GameOver         = &Error{Code: 30007, Message: "对局已结束", Status: 409}
 	BadPhase         = &Error{Code: 30008, Message: "当前阶段不能这样走", Status: 409}
 	RateLimited      = &Error{Code: 30009, Message: "操作太频繁，请稍候", Status: 429}
+	SelfJoin         = &Error{Code: 30010, Message: "不能加入自己创建的房间，请邀请另一位玩家", Status: 409}
+	RoomNotReady     = &Error{Code: 30011, Message: "请等待好友加入并准备", Status: 409}
+	RoomStarted      = &Error{Code: 30012, Message: "该房间已经开始游戏", Status: 409}
 	Internal         = &Error{Code: 50000, Message: "服务器内部错误，请稍后重试", Status: 500}
 	Unavailable      = &Error{Code: 50001, Message: "服务暂时不可用，请稍后重试", Status: 503}
 )
