@@ -263,7 +263,7 @@ func (s *GameState) removePenguin(player, slot int) {
 	p.Penguins[slot] = -1
 }
 
-// settleIsolatedPenguins 只剩脚下一块冰的企鹅立即掉落，不把被占用的相邻冰块算成水面。
+// settleIsolatedPenguins 孤立冰块上的企鹅立即掉落；被占用的相邻冰块不作为支撑。
 func (s *GameState) settleIsolatedPenguins() {
 	for player := range s.Players {
 		p := &s.Players[player]
@@ -276,7 +276,7 @@ func (s *GameState) settleIsolatedPenguins() {
 			connected := false
 			for _, d := range hexDirs {
 				n := s.find(tile.Q+d[0], tile.R+d[1])
-				if n >= 0 && !s.Tiles[n].Gone {
+				if n >= 0 && !s.Tiles[n].Gone && s.Tiles[n].Owner == -1 {
 					connected = true
 					break
 				}

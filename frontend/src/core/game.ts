@@ -99,11 +99,11 @@ function removePenguin(state: GameState, player: number, slot: number): void {
   p.penguins[slot] = -1;
 }
 
-/** 只剩脚下一块冰的企鹅立即掉落；相邻冰块被企鹅占用不等于孤岛。 */
+/** 孤立冰块上的企鹅立即掉落；被企鹅占据的相邻冰块不作为支撑。 */
 function settleIsolatedPenguins(state: GameState): void {
   state.players.forEach((p, player) => {
     p.penguins.forEach((idx, slot) => {
-      if (idx >= 0 && !neighbors(state, idx).some(n => n >= 0 && !state.tiles[n].gone)) {
+      if (idx >= 0 && !neighbors(state, idx).some(n => n >= 0 && !state.tiles[n].gone && state.tiles[n].owner === -1)) {
         removePenguin(state, player, slot);
       }
     });

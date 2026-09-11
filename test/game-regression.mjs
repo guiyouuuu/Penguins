@@ -123,14 +123,16 @@ for (const mover of [0, 1]) {
   });
 }
 
-test('occupied adjacent ice does not count as single ice', () => {
+test('two isolated occupied ice tiles both sink', () => {
   const before = {
-    tiles: [0, 1, 2, 5, 6, 10, 11, 12].map((q, i) => ({ q, r: 0, fish: 1, gone: false, owner: [0, 1, -1, 0, -1, 1, -1, -1][i] })),
-    players: [{ id: 0, score: 0, penguins: [0, 3], stuck: false }, { id: 1, score: 0, penguins: [1, 5], stuck: false }],
+    tiles: [0, 1, 5, 6].map((q, i) => ({ q, r: 0, fish: 1, gone: false, owner: [0, 1, 1, -1][i] })),
+    players: [{ id: 0, score: 0, penguins: [0], stuck: false }, { id: 1, score: 0, penguins: [1, 2], stuck: false }],
     phase: 'moving', turn: 1, winner: -2, ply: 4,
   };
-  const next = G.applyMove(before, { kind: 'move', player: 1, from: 5, to: 6 });
-  assert.equal(next.tiles[0].gone, false);
-  assert.equal(next.players[0].penguins[0], 0);
-  assert.equal(next.players[0].score, 0);
+  const next = G.applyMove(before, { kind: 'move', player: 1, from: 2, to: 3 });
+  assert.equal(next.tiles[0].gone, true);
+  assert.equal(next.tiles[1].gone, true);
+  assert.deepEqual(next.players[0].penguins, [-1]);
+  assert.deepEqual(next.players[1].penguins, [-1, -1]);
+  assert.equal(next.phase, 'finished');
 });

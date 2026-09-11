@@ -52,11 +52,11 @@ func TestFullGame(t *testing.T) {
 	if s.Turn != 0 {
 		t.Fatalf("移动阶段先手 = %d, 期望 0（先放置者先行动）", s.Turn)
 	}
-	// 每只企鹅都应有归属格
+	// 企鹅可能在放置阶段结束时因孤立冰块立即掉落；仍在场的企鹅必须有归属格。
 	for _, p := range s.Players {
-		for i, pos := range p.Penguins {
+		for _, pos := range p.Penguins {
 			if pos < 0 {
-				t.Fatalf("玩家 %d 第 %d 只企鹅未放置", p.ID, i)
+				continue
 			}
 			if s.Tiles[pos].Owner != int(p.ID) {
 				t.Fatalf("玩家 %d 企鹅位置 %d 与格子归属 %d 不一致", p.ID, pos, s.Tiles[pos].Owner)

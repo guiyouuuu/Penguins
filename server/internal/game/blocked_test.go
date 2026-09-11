@@ -87,17 +87,20 @@ func TestSingleIcePenguinFallsWhileOthersCanMove(t *testing.T) {
 	}
 }
 
-func TestOccupiedAdjacentIceDoesNotCountAsSingleIce(t *testing.T) {
+func TestOccupiedAdjacentIceTilesBothSink(t *testing.T) {
 	s := &GameState{
-		Tiles:   []Tile{{Q: 0, Fish: 3, Owner: 0}, {Q: 1, Fish: 1, Owner: 1}, {Q: 2, Fish: 1, Owner: -1}, {Q: 5, Fish: 1, Owner: 0}, {Q: 6, Fish: 1, Owner: -1}, {Q: 10, Fish: 1, Owner: 1}, {Q: 11, Fish: 1, Owner: -1}, {Q: 12, Fish: 1, Owner: -1}},
-		Players: []Player{{ID: 0, Penguins: []int{0, 3}}, {ID: 1, Penguins: []int{1, 5}}},
+		Tiles:   []Tile{{Q: 0, Fish: 1, Owner: 0}, {Q: 1, Fish: 1, Owner: 1}, {Q: 5, Fish: 1, Owner: 1}, {Q: 6, Fish: 1, Owner: -1}},
+		Players: []Player{{ID: 0, Penguins: []int{0}}, {ID: 1, Penguins: []int{1, 2}}},
 		Phase:   PhaseMoving, Turn: 1, Winner: -2,
 	}
-	next, err := s.ApplyMove(&Move{Kind: "move", Player: 1, From: 5, To: 6})
+	next, err := s.ApplyMove(&Move{Kind: "move", Player: 1, From: 2, To: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Tiles[0].Gone || next.Players[0].Penguins[0] != 0 || next.Players[0].Score != 0 {
-		t.Fatal("connected ice must not collapse solely because its neighbor is occupied")
+	if !next.Tiles[0].Gone || !next.Tiles[1].Gone || len(next.Players[0].Penguins) == 0 || next.Players[0].Penguins[0] != -1 {
+		t.Fatal("both penguins on the isolated occupied ice tiles must sink")
+	}
+	if next.Players[1].Penguins[0] != -1 || next.Players[1].Penguins[1] != -1 || next.Phase != PhaseFinished {
+		t.Fatal("all penguins must be removed and the game must finish")
 	}
 }
